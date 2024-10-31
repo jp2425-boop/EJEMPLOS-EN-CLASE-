@@ -1,0 +1,129 @@
+import tkinter as tk
+from tkinter import messagebox
+import pandas as pd
+import matplotlib.pyplot as plt
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.lib import colors
+from reportlab.lib.utils import ImageReader  # Importar ImageReader para leer imágenes desde BytesIO
+import os
+from io import BytesIO
+
+# Diccionario que mapea emociones a descripciones y emojis
+emociones_emoji = {
+    "feliz": "Feliz 😃",
+    "triste": "Triste 😢",
+    "enojado": "Enojado 😡",
+    "ansioso": "Ansioso 😰",
+    "relajado": "Relajado 😌",
+    "emocionado": "Emocionado 😄",
+    "cansado": "Cansado 😴",
+    "con hambre": "con hambre 🥱",
+    "aburrido": "aburrido 😪",
+    "con sueño": "con sueño 😴"
+    }
+
+# Función para guardar los datos de entrada del usuario (emoción y su descripción)
+def guardar_datos():
+    emocion = entry_emocion.get().lower()  # Convertir emoción a minúsculas para mayor coincidencia
+    descripcion = emociones_emoji.get(emocion, "Desconocido 🤔")  # Si no hay coincidencia, usar una descripción por defecto
+    
+    if emocion:
+        # Guardar emoción y descripción en un archivo CSV
+        df = pd.DataFrame([[emocion, descripcion]], columns=['Emocion', 'Descripcion'])
+        df.to_csv('emociones.csv', mode='a', header=False, index=False)
+        messagebox.showinfo("Guardado", f"Emoción guardada correctamente: {descripcion}")
+    else:
+        messagebox.showwarning("Error", "Por favor, ingresa una emoción")
+
+# Función para graficar el progreso del usuario con descripciones
+def graficar_progreso():
+    try:
+        # Cargar los datos de emociones del archivo CSV
+        df = pd.read_csv('emociones.csv', header=None, names=['Emocion', 'Descripcion'])
+        
+        # Crear una columna 'Tiempo' con intervalos de 3 horas
+        df['Tiempo'] = [(i * 3) for i in range(len(df))]  # Intervalos de 3 horas
+        
+        # Crear gráfico de barras
+        plt.bar(df['Tiempo'], df['Emocion'])
+        plt.xlabel('Horas')
+        plt.ylabel('Emoción')
+        plt.title('Progreso Emocional (Cada 3 horas)')
+        
+        # Mostrar las descripciones sobre las barras
+        for i, row in df.iterrows():
+            plt.text(row['Tiempo'], i + 0.1, row['Descripcion'], ha='center', va='bottom', fontsize=12)
+        
+        plt.show()
+    except FileNotFoundError:
+        messagebox.showwarning("Error", "No hay datos para graficar")
+
+# Función para exportar el informe a PDF con ReportLab
+def exportar_pdf():
+    try:
+        # Crear archivo PDF
+        c = canvas.Canvas("informe_salud_mental.pdf", pagesize=letter)
+        width, height = letter
+
+        # Título del documento
+        c.setFont("Helvetica", 16)
+        c.drawCentredString(width / 2, height - 50, "Informe de Salud Mental")
+        
+        # Leer el CSV de emociones
+        df = pd.read_csv('emociones.csv', header=None, names=['Emocion', 'Descripcion'])
+        
+        # Escribir las emociones y descripciones en el PDF
+        c.setFont("Helvetica", 12)
+        y_position = height - 100
+        for i, (emocion, descripcion) in enumerate(zip(df['Emocion'], df['Descripcion']), 1):
+            c.drawString(100, y_position, f"Registro {i}: {descripcion}")
+            y_position -= 20  # Mover el texto hacia abajo
+        
+        # Crear el gráfico de barras con intervalos de 3 horas
+        df['Tiempo'] = [(i * 3) for i in range(len(df))]
+        plt.bar(df['Tiempo'], df['Emocion'])
+        plt.xlabel('Hora')
+        plt.ylabel('Emoción')
+        plt.title('Progreso Emocional (Cada hora)')
+        
+        # Guardar el gráfico en un buffer de Bytes
+        buffer = BytesIO()
+        plt.savefig(buffer, format='PNG')
+        buffer.seek(0)
+        plt.close()
+
+        # Usar ImageReader para cargar la imagen desde el buffer
+        image = ImageReader(buffer)
+        
+        # Incluir el gráfico en el PDF
+        c.drawImage(image, 100, y_position - 200, width=400, height=200)
+
+        # Guardar el archivo PDF
+        c.save()
+        messagebox.showinfo("Exportado", "Informe exportado a PDF correctamente")
+    except FileNotFoundError:
+        messagebox.showwarning("Error", "No hay datos para exportar")
+
+# Crear la ventana principal de Tkinter
+root = tk.Tk()
+root.title("Monitoreo de Salud Mental")
+
+# Crear y colocar los widgets de la interfaz
+label_emocion = tk.Label(root, text="Ingresa tu emoción:")
+label_emocion.pack()
+
+entry_emocion = tk.Entry(root)
+entry_emocion.pack()
+
+boton_guardar = tk.Button(root, text="Guardar Emoción", command=guardar_datos)
+boton_guardar.pack()
+
+boton_graficar = tk.Button(root, text="Graficar Progreso", command=graficar_progreso)
+boton_graficar.pack()
+
+boton_exportar_pdf = tk.Button(root, text="Exportar Informe a PDF", command=exportar_pdf)
+boton_exportar_pdf.pack()
+
+# Iniciar el bucle principal de la interfaz
+root.mainloop()
